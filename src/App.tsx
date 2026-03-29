@@ -5,7 +5,7 @@ function Tooltip({ content }: { content: React.ReactNode }) {
   return (
     <div className="group relative flex items-center" onClick={(e) => e.preventDefault()}>
       <HelpCircle size={14} className="text-neutral-400 hover:text-blue-500 cursor-help transition-colors" />
-      <div className="absolute left-1/2 -translate-x-1/2 top-full mt-2 w-max max-w-xs p-3 bg-neutral-800 text-white text-xs rounded shadow-lg z-50 text-left pointer-events-none invisible opacity-0 group-hover:visible group-hover:opacity-100 transition-all duration-200">
+      <div className="absolute left-1/2 -translate-x-1/2 top-full mt-2 w-max max-w-xs p-3 bg-neutral-800 text-white text-xs normal-case tracking-normal rounded shadow-lg z-50 text-left pointer-events-none invisible opacity-0 group-hover:visible group-hover:opacity-100 transition-all duration-200">
         {content}
         <div className="absolute bottom-full left-1/2 -translate-x-1/2 border-4 border-transparent border-b-neutral-800"></div>
       </div>
@@ -13,7 +13,7 @@ function Tooltip({ content }: { content: React.ReactNode }) {
   );
 }
 
-type CaseOption = 'original' | 'uppercase' | 'lowercase' | 'titlecase' | 'propercase';
+type CaseOption = 'original' | 'uppercase' | 'lowercase' | 'titlecase' | 'propercase' | 'sentencecase';
 
 interface FormatterOptions {
   caseOption: CaseOption;
@@ -102,6 +102,12 @@ export default function App() {
         /\w\S*/g,
         (txt) => txt.charAt(0).toUpperCase() + txt.substring(1).toLowerCase()
       ));
+    } else if (options.caseOption === 'sentencecase') {
+      lines = lines.map(line => {
+        const match = line.match(/^(\s*)(.*)$/);
+        if (!match || !match[2]) return line;
+        return match[1] + match[2].charAt(0).toUpperCase() + match[2].substring(1).toLowerCase();
+      });
     } else if (options.caseOption === 'titlecase') {
       const smallWords = /^(a|an|and|as|at|but|by|en|for|if|in|nor|of|on|or|per|the|to|v\.?|vs\.?|via)$/i;
       lines = lines.map(line => line.replace(
@@ -195,30 +201,41 @@ export default function App() {
                 <Tooltip content={
                   <div className="flex flex-col gap-2">
                     <p>Changes the capitalization of all text.</p>
-                    <div className="text-neutral-300 font-mono text-[10px] leading-relaxed">
-                      <p><span className="text-white">original:</span> the lord of the rings</p>
-                      <p><span className="text-white">uppercase:</span> THE LORD OF THE RINGS</p>
-                      <p><span className="text-white">lowercase:</span> the lord of the rings</p>
-                      <p><span className="text-white">propercase:</span> The Lord Of The Rings</p>
-                      <p><span className="text-white">titlecase:</span> The Lord of the Rings</p>
+                    <div className="text-neutral-300 font-mono text-[11px] leading-relaxed">
+                      <p><span className="text-white font-medium">Original:</span> the lord of the rings</p>
+                      <p><span className="text-white font-medium">Uppercase:</span> THE LORD OF THE RINGS</p>
+                      <p><span className="text-white font-medium">Lowercase:</span> the lord of the rings</p>
+                      <p><span className="text-white font-medium">Sentence case:</span> The lord of the rings</p>
+                      <p><span className="text-white font-medium">Proper case:</span> The Lord Of The Rings</p>
+                      <p><span className="text-white font-medium">Title case:</span> The Lord of the Rings</p>
                     </div>
                   </div>
                 } />
               </h3>
               <div className="space-y-2">
-                {(['original', 'uppercase', 'lowercase', 'propercase', 'titlecase'] as CaseOption[]).map((c) => (
-                  <label key={c} className="flex items-center gap-3 p-2 rounded-md hover:bg-neutral-50 cursor-pointer transition-colors">
-                    <input 
-                      type="radio" 
-                      name="caseOption" 
-                      value={c}
-                      checked={options.caseOption === c}
-                      onChange={(e) => setOptions({...options, caseOption: e.target.value as CaseOption})}
-                      className="w-4 h-4 text-blue-600 border-neutral-300 focus:ring-blue-500"
-                    />
-                    <span className="text-sm text-neutral-700 capitalize">{c}</span>
-                  </label>
-                ))}
+                {(['original', 'uppercase', 'lowercase', 'sentencecase', 'propercase', 'titlecase'] as CaseOption[]).map((c) => {
+                  const caseLabels: Record<CaseOption, string> = {
+                    original: 'Original',
+                    uppercase: 'Uppercase',
+                    lowercase: 'Lowercase',
+                    sentencecase: 'Sentence case',
+                    propercase: 'Proper case',
+                    titlecase: 'Title case'
+                  };
+                  return (
+                    <label key={c} className="flex items-center gap-3 p-2 rounded-md hover:bg-neutral-50 cursor-pointer transition-colors">
+                      <input 
+                        type="radio" 
+                        name="caseOption" 
+                        value={c}
+                        checked={options.caseOption === c}
+                        onChange={(e) => setOptions({...options, caseOption: e.target.value as CaseOption})}
+                        className="w-4 h-4 text-blue-600 border-neutral-300 focus:ring-blue-500"
+                      />
+                      <span className="text-sm text-neutral-700">{caseLabels[c]}</span>
+                    </label>
+                  );
+                })}
               </div>
             </section>
 
