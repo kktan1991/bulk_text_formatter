@@ -1,7 +1,19 @@
 import React, { useState, useMemo } from 'react';
-import { Copy, Trash2, ArrowRightLeft, Type, AlignLeft, Settings2, Check } from 'lucide-react';
+import { Copy, Trash2, ArrowRightLeft, Type, AlignLeft, Settings2, Check, HelpCircle } from 'lucide-react';
 
-type CaseOption = 'original' | 'uppercase' | 'lowercase' | 'titlecase';
+function Tooltip({ content }: { content: React.ReactNode }) {
+  return (
+    <div className="group relative flex items-center" onClick={(e) => e.preventDefault()}>
+      <HelpCircle size={14} className="text-neutral-400 hover:text-blue-500 cursor-help transition-colors" />
+      <div className="absolute left-1/2 -translate-x-1/2 top-full mt-2 w-max max-w-xs p-3 bg-neutral-800 text-white text-xs rounded shadow-lg z-50 text-left pointer-events-none invisible opacity-0 group-hover:visible group-hover:opacity-100 transition-all duration-200">
+        {content}
+        <div className="absolute bottom-full left-1/2 -translate-x-1/2 border-4 border-transparent border-b-neutral-800"></div>
+      </div>
+    </div>
+  );
+}
+
+type CaseOption = 'original' | 'uppercase' | 'lowercase' | 'titlecase' | 'propercase';
 
 interface FormatterOptions {
   caseOption: CaseOption;
@@ -10,6 +22,13 @@ interface FormatterOptions {
   prefix: string;
   suffix: string;
   removeEmptyLines: boolean;
+  addLineNumbers: boolean;
+  addBulletPoints: boolean;
+  removeDuplicates: boolean;
+  normalizeVerticalSpacing: boolean;
+  normalizePunctuation: boolean;
+  cleanCsvSpaces: boolean;
+  cleanJson: boolean;
 }
 
 export default function App() {
@@ -22,39 +41,103 @@ export default function App() {
     prefix: '',
     suffix: '',
     removeEmptyLines: false,
+    addLineNumbers: false,
+    addBulletPoints: false,
+    removeDuplicates: false,
+    normalizeVerticalSpacing: false,
+    normalizePunctuation: false,
+    cleanCsvSpaces: false,
+    cleanJson: false,
   });
 
   const outputText = useMemo(() => {
-    let result = inputText;
+    let lines = inputText.split('\n');
 
     if (options.removeEmptyLines) {
-      result = result.split('\n').filter(line => line.trim().length > 0).join('\n');
+      lines = lines.filter(line => line.trim().length > 0);
+    } else if (options.normalizeVerticalSpacing) {
+      const normalizedLines: string[] = [];
+      let prevEmpty = false;
+      for (const line of lines) {
+        const isEmpty = line.trim().length === 0;
+        if (isEmpty) {
+          if (!prevEmpty) {
+            normalizedLines.push(line);
+            prevEmpty = true;
+          }
+        } else {
+          normalizedLines.push(line);
+          prevEmpty = false;
+        }
+      }
+      lines = normalizedLines;
     }
 
     if (options.cleanExtraSpaces) {
-      result = result.split('\n').map(line => line.replace(/[ \t]+/g, ' ').trim()).join('\n');
+      lines = lines.map(line => line.replace(/[ \t]+/g, ' ').trim());
     }
 
-    if (options.removeLineBreaks) {
-      result = result.replace(/\n/g, ' ');
+    if (options.normalizePunctuation) {
+      lines = lines.map(line => line.replace(/([.,!?]+)([a-zA-Z])/g, '$1 $2'));
+    }
+
+    if (options.cleanCsvSpaces) {
+      lines = lines.map(line => line.replace(/\s*,\s*/g, ','));
+    }
+
+    if (options.cleanJson) {
+      lines = lines.map(line => line.replace(/["']/g, '').replace(/,\s*$/, ''));
+    }
+
+    if (options.removeDuplicates) {
+      lines = Array.from(new Set(lines));
     }
 
     if (options.caseOption === 'uppercase') {
-      result = result.toUpperCase();
+      lines = lines.map(line => line.toUpperCase());
     } else if (options.caseOption === 'lowercase') {
-      result = result.toLowerCase();
-    } else if (options.caseOption === 'titlecase') {
-      result = result.replace(
+      lines = lines.map(line => line.toLowerCase());
+    } else if (options.caseOption === 'propercase') {
+      lines = lines.map(line => line.replace(
         /\w\S*/g,
         (txt) => txt.charAt(0).toUpperCase() + txt.substring(1).toLowerCase()
-      );
+      ));
+    } else if (options.caseOption === 'titlecase') {
+      const smallWords = /^(a|an|and|as|at|but|by|en|for|if|in|nor|of|on|or|per|the|to|v\.?|vs\.?|via)$/i;
+      lines = lines.map(line => line.replace(
+        /\w\S*/g,
+        (txt, offset) => {
+          if (offset > 0 && smallWords.test(txt)) {
+            return txt.toLowerCase();
+          }
+          return txt.charAt(0).toUpperCase() + txt.substring(1).toLowerCase();
+        }
+      ));
     }
 
     if (options.prefix || options.suffix) {
-      result = result.split('\n').map(line => {
+      lines = lines.map(line => {
         if (line.length === 0 && !options.prefix && !options.suffix) return line;
         return `${options.prefix}${line}${options.suffix}`;
-      }).join('\n');
+      });
+    }
+
+    if (options.addLineNumbers) {
+      const padLength = String(lines.length).length;
+      lines = lines.map((line, index) => {
+        const num = String(index + 1).padStart(padLength, '0');
+        return `${num}. ${line}`;
+      });
+    }
+
+    if (options.addBulletPoints) {
+      lines = lines.map(line => `• ${line}`);
+    }
+
+    let result = lines.join('\n');
+
+    if (options.removeLineBreaks) {
+      result = result.replace(/\n/g, ' ');
     }
 
     return result;
@@ -109,9 +192,21 @@ export default function App() {
               <h3 className="text-sm font-semibold text-neutral-900 uppercase tracking-wider mb-3 flex items-center gap-2">
                 <Type size={16} className="text-neutral-500" />
                 Case Conversion
+                <Tooltip content={
+                  <div className="flex flex-col gap-2">
+                    <p>Changes the capitalization of all text.</p>
+                    <div className="text-neutral-300 font-mono text-[10px] leading-relaxed">
+                      <p><span className="text-white">original:</span> the lord of the rings</p>
+                      <p><span className="text-white">uppercase:</span> THE LORD OF THE RINGS</p>
+                      <p><span className="text-white">lowercase:</span> the lord of the rings</p>
+                      <p><span className="text-white">propercase:</span> The Lord Of The Rings</p>
+                      <p><span className="text-white">titlecase:</span> The Lord of the Rings</p>
+                    </div>
+                  </div>
+                } />
               </h3>
               <div className="space-y-2">
-                {(['original', 'uppercase', 'lowercase', 'titlecase'] as CaseOption[]).map((c) => (
+                {(['original', 'uppercase', 'lowercase', 'propercase', 'titlecase'] as CaseOption[]).map((c) => (
                   <label key={c} className="flex items-center gap-3 p-2 rounded-md hover:bg-neutral-50 cursor-pointer transition-colors">
                     <input 
                       type="radio" 
@@ -141,7 +236,43 @@ export default function App() {
                     onChange={(e) => setOptions({...options, cleanExtraSpaces: e.target.checked})}
                     className="w-4 h-4 text-blue-600 border-neutral-300 rounded focus:ring-blue-500"
                   />
-                  <span className="text-sm text-neutral-700">Clean extra spaces</span>
+                  <span className="text-sm text-neutral-700 flex items-center gap-1.5">Clean extra spaces <Tooltip content="Removes multiple consecutive spaces and trims spaces at the ends of lines." /></span>
+                </label>
+                <label className="flex items-center gap-3 p-2 rounded-md hover:bg-neutral-50 cursor-pointer transition-colors">
+                  <input 
+                    type="checkbox" 
+                    checked={options.normalizeVerticalSpacing}
+                    onChange={(e) => setOptions({...options, normalizeVerticalSpacing: e.target.checked})}
+                    className="w-4 h-4 text-blue-600 border-neutral-300 rounded focus:ring-blue-500"
+                  />
+                  <span className="text-sm text-neutral-700 flex items-center gap-1.5">Normalize vertical spacing <Tooltip content="Reduces multiple blank lines down to a single blank line." /></span>
+                </label>
+                <label className="flex items-center gap-3 p-2 rounded-md hover:bg-neutral-50 cursor-pointer transition-colors">
+                  <input 
+                    type="checkbox" 
+                    checked={options.normalizePunctuation}
+                    onChange={(e) => setOptions({...options, normalizePunctuation: e.target.checked})}
+                    className="w-4 h-4 text-blue-600 border-neutral-300 rounded focus:ring-blue-500"
+                  />
+                  <span className="text-sm text-neutral-700 flex items-center gap-1.5">Normalize punctuation <Tooltip content="Ensures there is a space after commas, periods, exclamation, and question marks." /></span>
+                </label>
+                <label className="flex items-center gap-3 p-2 rounded-md hover:bg-neutral-50 cursor-pointer transition-colors">
+                  <input 
+                    type="checkbox" 
+                    checked={options.cleanCsvSpaces}
+                    onChange={(e) => setOptions({...options, cleanCsvSpaces: e.target.checked})}
+                    className="w-4 h-4 text-blue-600 border-neutral-300 rounded focus:ring-blue-500"
+                  />
+                  <span className="text-sm text-neutral-700 flex items-center gap-1.5">CSV-like text cleanup <Tooltip content="Removes spaces around commas to standardize lists (e.g., 'apple , banana' becomes 'apple,banana')." /></span>
+                </label>
+                <label className="flex items-center gap-3 p-2 rounded-md hover:bg-neutral-50 cursor-pointer transition-colors">
+                  <input 
+                    type="checkbox" 
+                    checked={options.cleanJson}
+                    onChange={(e) => setOptions({...options, cleanJson: e.target.checked})}
+                    className="w-4 h-4 text-blue-600 border-neutral-300 rounded focus:ring-blue-500"
+                  />
+                  <span className="text-sm text-neutral-700 flex items-center gap-1.5">JSON-like raw text <Tooltip content="Removes quotes and trailing commas to clean up JSON-like key-value pairs." /></span>
                 </label>
                 <label className="flex items-center gap-3 p-2 rounded-md hover:bg-neutral-50 cursor-pointer transition-colors">
                   <input 
@@ -150,7 +281,34 @@ export default function App() {
                     onChange={(e) => setOptions({...options, removeEmptyLines: e.target.checked})}
                     className="w-4 h-4 text-blue-600 border-neutral-300 rounded focus:ring-blue-500"
                   />
-                  <span className="text-sm text-neutral-700">Remove empty lines</span>
+                  <span className="text-sm text-neutral-700 flex items-center gap-1.5">Remove empty lines <Tooltip content="Deletes all lines that contain no text or only spaces." /></span>
+                </label>
+                <label className="flex items-center gap-3 p-2 rounded-md hover:bg-neutral-50 cursor-pointer transition-colors">
+                  <input 
+                    type="checkbox" 
+                    checked={options.removeDuplicates}
+                    onChange={(e) => setOptions({...options, removeDuplicates: e.target.checked})}
+                    className="w-4 h-4 text-blue-600 border-neutral-300 rounded focus:ring-blue-500"
+                  />
+                  <span className="text-sm text-neutral-700 flex items-center gap-1.5">Remove duplicates <Tooltip content="Removes exact duplicate lines, keeping only the first occurrence." /></span>
+                </label>
+                <label className="flex items-center gap-3 p-2 rounded-md hover:bg-neutral-50 cursor-pointer transition-colors">
+                  <input 
+                    type="checkbox" 
+                    checked={options.addLineNumbers}
+                    onChange={(e) => setOptions({...options, addLineNumbers: e.target.checked})}
+                    className="w-4 h-4 text-blue-600 border-neutral-300 rounded focus:ring-blue-500"
+                  />
+                  <span className="text-sm text-neutral-700 flex items-center gap-1.5">Add line numbers <Tooltip content="Adds sequential numbers (01., 02., etc.) to the beginning of each line." /></span>
+                </label>
+                <label className="flex items-center gap-3 p-2 rounded-md hover:bg-neutral-50 cursor-pointer transition-colors">
+                  <input 
+                    type="checkbox" 
+                    checked={options.addBulletPoints}
+                    onChange={(e) => setOptions({...options, addBulletPoints: e.target.checked})}
+                    className="w-4 h-4 text-blue-600 border-neutral-300 rounded focus:ring-blue-500"
+                  />
+                  <span className="text-sm text-neutral-700 flex items-center gap-1.5">Add bullet points <Tooltip content="Adds a bullet point (•) to the beginning of each line." /></span>
                 </label>
                 <label className="flex items-center gap-3 p-2 rounded-md hover:bg-neutral-50 cursor-pointer transition-colors">
                   <input 
@@ -159,7 +317,7 @@ export default function App() {
                     onChange={(e) => setOptions({...options, removeLineBreaks: e.target.checked})}
                     className="w-4 h-4 text-blue-600 border-neutral-300 rounded focus:ring-blue-500"
                   />
-                  <span className="text-sm text-neutral-700">Remove all line breaks</span>
+                  <span className="text-sm text-neutral-700 flex items-center gap-1.5">Remove all line breaks <Tooltip content="Joins all lines into a single continuous paragraph." /></span>
                 </label>
               </div>
             </section>
@@ -172,7 +330,10 @@ export default function App() {
               </h3>
               <div className="space-y-4">
                 <div>
-                  <label className="block text-xs font-medium text-neutral-500 mb-1">Add to start of each line</label>
+                  <label className="flex items-center gap-1.5 text-xs font-medium text-neutral-500 mb-1">
+                    Add to start of each line
+                    <Tooltip content="Text to insert at the very beginning of every line." />
+                  </label>
                   <input 
                     type="text" 
                     value={options.prefix}
@@ -182,7 +343,10 @@ export default function App() {
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-neutral-500 mb-1">Add to end of each line</label>
+                  <label className="flex items-center gap-1.5 text-xs font-medium text-neutral-500 mb-1">
+                    Add to end of each line
+                    <Tooltip content="Text to append at the very end of every line." />
+                  </label>
                   <input 
                     type="text" 
                     value={options.suffix}
